@@ -67,8 +67,15 @@
                 font-weight: 400;
             }
 
-            button {
+            .buttons-row {
                 margin-top: 10px;
+                display: flex;
+                gap: 8px;
+                flex-wrap: wrap;
+                align-items: center;
+            }
+
+            button {
                 padding: 10px 16px;
                 font-size: 1rem;
                 border-radius: 4px;
@@ -80,6 +87,15 @@
 
             button:hover {
                 background: #1d4ed8;
+            }
+
+            .secondary-button {
+                background: #e5e7eb;
+                color: #111827;
+            }
+
+            .secondary-button:hover {
+                background: #d1d5db;
             }
 
             .summary-box {
@@ -120,6 +136,15 @@
 
             ul li {
                 margin-bottom: 4px;
+            }
+
+            .page-footer {
+                margin-top: 24px;
+                padding: 12px 16px;
+                border-top: 1px solid #ddd;
+                font-size: 0.85rem;
+                color: #555;
+                text-align: center;
             }
         </style>
     </head>
@@ -175,7 +200,12 @@
                     </div>
                 </div>
 
-                <button type="submit">Calculate</button>
+                <div class="buttons-row">
+                    <button type="submit" id="calculateBtn">Calculate</button>
+                    <button type="button" id="copyQueryBtn" class="secondary-button">Copy query link</button>
+                    <span id="copyStatus" class="note"></span>
+                </div>
+
                 <div id="error" class="error"></div>
             </form>
 
@@ -191,6 +221,13 @@
                 For the full summer example, set check in to May 21, 2026 and last day to August 2, 2026.
                 August 2 is a free Late Check Out day and does not add an extra week.
             </p>
+
+            <footer class="page-footer">
+                <p>Created By: Donald Gaeta</p>
+                <p>Program: UML Intern Housing Program</p>
+                <p>Date: 12/3/2025</p>
+                <p>&copy; 2025 Donald J Gaeta (Gaeta.me). All rights reserved.</p>
+            </footer>
         </div>
 
         <script>
@@ -259,6 +296,106 @@
                 }
 
                 /**
+                 * Get current form values as a state object.
+                 */
+                function getFormState() {
+                    const checkInVal = document.getElementById("checkIn").value;
+                    const leaveVal = document.getElementById("leave").value;
+                    const housingTypeInput = document.querySelector('input[name="housingType"]:checked');
+                    const housingTypeVal = housingTypeInput ? housingTypeInput.value : "shared";
+                    return {
+                        checkIn: checkInVal,
+                        leave: leaveVal,
+                        housingType: housingTypeVal
+                    };
+                }
+
+                /**
+                 * Update URL query string based on current form values
+                 * without reloading the page.
+                 */
+                function updateUrlFromForm() {
+                    const state = getFormState();
+                    const params = new URLSearchParams();
+
+                    if (state.checkIn) {
+                        params.set("checkIn", state.checkIn);
+                    }
+                    if (state.leave) {
+                        params.set("leave", state.leave);
+                    }
+                    if (state.housingType) {
+                        params.set("housingType", state.housingType);
+                    }
+
+                    const query = params.toString();
+                    const newUrl = window.location.pathname + (query ? "?" + query : "");
+                    window.history.replaceState(null, "", newUrl);
+                }
+
+                /**
+                 * Apply values from URL query string into the form.
+                 */
+                function applyFormStateFromQuery() {
+                    const params = new URLSearchParams(window.location.search);
+                    const checkInParam = params.get("checkIn");
+                    const leaveParam = params.get("leave");
+                    const housingTypeParam = params.get("housingType");
+
+                    const checkInInput = document.getElementById("checkIn");
+                    const leaveInput = document.getElementById("leave");
+
+                    if (checkInParam) {
+                        checkInInput.value = checkInParam;
+                    }
+                    if (leaveParam) {
+                        leaveInput.value = leaveParam;
+                    }
+
+                    if (housingTypeParam === "shared" || housingTypeParam === "private") {
+                        const radio = document.querySelector(
+                            'input[name="housingType"][value="' + housingTypeParam + '"]'
+                        );
+                        if (radio) {
+                            radio.checked = true;
+                        }
+                    }
+                }
+
+                /**
+                 * Copy the current URL (with query) to clipboard and show status.
+                 */
+                function copyCurrentUrlToClipboard() {
+                    const copyStatus = document.getElementById("copyStatus");
+                    const urlToCopy = window.location.href;
+
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        navigator.clipboard.writeText(urlToCopy)
+                            .then(function () {
+                                copyStatus.textContent = "Query link copied to clipboard.";
+                                setTimeout(function () {
+                                    copyStatus.textContent = "";
+                                }, 3000);
+                            })
+                            .catch(function () {
+                                copyStatus.textContent = "Could not copy link.";
+                                setTimeout(function () {
+                                    copyStatus.textContent = "";
+                                }, 3000);
+                            });
+                    } else {
+                        // Fallback
+                        const ok = window.prompt("Copy this link:", urlToCopy);
+                        if (ok !== null) {
+                            copyStatus.textContent = "Query link ready to copy.";
+                            setTimeout(function () {
+                                copyStatus.textContent = "";
+                            }, 3000);
+                        }
+                    }
+                }
+
+                /**
                  * Calculate how many Sunday to Saturday weeks are billed.
                  * Weeks run from FIRST_SUNDAY up to LAST_SATURDAY.
                  * We bill for a week if the guest stays any part of that week.
@@ -289,11 +426,33 @@
                     return weeks;
                 }
 
+                // Apply query params on initial load
+                applyFormStateFromQuery();
+
+                // Hook up query updating when inputs change
+                document.getElementById("checkIn").addEventListener("change", updateUrlFromForm);
+                document.getElementById("leave").addEventListener("change", updateUrlFromForm);
+                const housingRadios = document.querySelectorAll('input[name="housingType"]');
+                housingRadios.forEach(function (radio) {
+                    radio.addEventListener("change", updateUrlFromForm);
+                });
+
+                // Copy query button
+                document.getElementById("copyQueryBtn").addEventListener("click", function () {
+                    // Make sure URL reflects latest inputs before copying
+                    updateUrlFromForm();
+                    copyCurrentUrlToClipboard();
+                });
+
+                // Main calculate handler
                 document.getElementById("calcForm").addEventListener("submit", function (evt) {
                     evt.preventDefault();
                     const errorEl = document.getElementById("error");
                     errorEl.textContent = "";
                     clearList(document.getElementById("steps"));
+
+                    // Keep URL query in sync with current inputs
+                    updateUrlFromForm();
 
                     let checkIn = getDateFromInput("checkIn");
                     let lastDaySelected = getDateFromInput("leave");
