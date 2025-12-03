@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <title>Intern Housing Dates and Rates Calculator</title>
+        <style>
+            body {
+                font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+                background: #f5f5f5;
+                margin: 0;
+                padding: 0;
+            }
+
+            .container {
+                max-width: 900px;
+                margin: 20px auto;
+                background: #ffffff;
+                padding: 20px 24px;
+                border-radius: 8px;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            }
+
+            h1 {
+                margin-top: 0;
+                font-size: 1.6rem;
+            }
+
+            h2 {
+                margin-top: 1.4rem;
+                font-size: 1.3rem;
+            }
+
+            .grid {
+                display: grid;
+                grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+                gap: 16px;
+            }
+
+            .field {
+                display: flex;
+                flex-direction: column;
+                gap: 4px;
+                margin-bottom: 8px;
+            }
+
+            label {
+                font-weight: 600;
+                font-size: 0.9rem;
+            }
+
+            input[type="date"] {
+                padding: 8px;
+                border-radius: 4px;
+                border: 1px solid #ccc;
+                font-size: 0.95rem;
+            }
+
+            .radio-group {
+                display: flex;
+                gap: 12px;
+                align-items: center;
+                flex-wrap: wrap;
+                font-size: 0.95rem;
+            }
+
+            .radio-group label {
+                font-weight: 400;
+            }
+
+            button {
+                margin-top: 10px;
+                padding: 10px 16px;
+                font-size: 1rem;
+                border-radius: 4px;
+                border: none;
+                cursor: pointer;
+                background: #2563eb;
+                color: #ffffff;
+            }
+
+            button:hover {
+                background: #1d4ed8;
+            }
+
+            .summary-box {
+                background: #f0f4ff;
+                border-radius: 6px;
+                padding: 12px 14px;
+                margin-top: 10px;
+                font-size: 0.95rem;
+            }
+
+            .summary-box p {
+                margin: 4px 0;
+            }
+
+            #steps {
+                font-size: 0.95rem;
+            }
+
+            #steps li {
+                margin-bottom: 6px;
+            }
+
+            .error {
+                color: #b91c1c;
+                font-weight: 600;
+                margin-top: 8px;
+            }
+
+            .note {
+                font-size: 0.85rem;
+                color: #555;
+                margin-top: 6px;
+            }
+
+            ul {
+                padding-left: 20px;
+            }
+
+            ul li {
+                margin-bottom: 4px;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>Intern Housing Dates and Rates Calculator</h1>
+
+            <p>Rules this calculator uses:</p>
+            <ul>
+                <li>Intern housing runs from Thursday May 21, 2026 through Sunday August 2, 2026.</li>
+                <li>First Sunday of the program is May 24, 2026.</li>
+                <li>Last program Saturday is August 1, 2026. People move out on this day.</li>
+                <li>Days from May 21 through May 23 are charged at a per day rate equal to the weekly rate divided by 7. If the stay touches these dates they are added on top of weekly billing.</li>
+                <li>Weeks run Sunday through Saturday and are billed as whole weeks if the guest stays any part of that week.</li>
+                <li>There is a two week minimum on weekly billing if any weekly billing applies.</li>
+                <li>August 2, 2026 can be chosen as a Late Check Out day and is not charged. It does not create an extra week.</li>
+                <li>If they decide to stay until August 2 then August 1 and August 2 are both free in terms of nights. Weekly billing is still based on the weeks that are touched.</li>
+                <li>Example: July 26 to August 1 is one billed week. July 26 to August 2 is still one billed week.</li>
+            </ul>
+
+            <h2>Inputs</h2>
+            <form id="calcForm">
+                <div class="grid">
+                    <div class="field">
+                        <label for="checkIn">Check in date (first day they stay)</label>
+                        <input id="checkIn" type="date" value="2026-05-21" />
+                    </div>
+
+                    <div class="field">
+                        <label for="leave">
+                            Last day they select in the system
+                            (they may pick August 2, 2026 for Late Check Out)
+                        </label>
+                        <input id="leave" type="date" value="2026-08-02" />
+                    </div>
+
+                    <div class="field">
+                        <label>Housing type</label>
+                        <div class="radio-group">
+                            <label>
+                                <input type="radio" name="housingType" value="shared" checked />
+                                Private bedroom in shared apartment
+                                (weekly rate $390)
+                            </label>
+                        </div>
+                        <div class="radio-group">
+                            <label>
+                                <input type="radio" name="housingType" value="private" />
+                                Private apartment
+                                (weekly rate $780)
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <button type="submit">Calculate</button>
+                <div id="error" class="error"></div>
+            </form>
+
+            <h2>Summary</h2>
+            <div id="summary" class="summary-box">
+                <p>Fill in the form and click Calculate.</p>
+            </div>
+
+            <h2>Step by step explanation</h2>
+            <ol id="steps"></ol>
+
+            <p class="note">
+                For the full summer example, set check in to May 21, 2026 and last day to August 2, 2026.
+                August 2 is a free Late Check Out day and does not add an extra week.
+            </p>
+        </div>
+
+        <script>
+            (function () {
+                const MS_PER_DAY = 1000 * 60 * 60 * 24;
+
+                // Program date constants
+                const PROGRAM_START = mkDate("2026-05-21");        // first possible day
+                const FIRST_SUNDAY = mkDate("2026-05-24");         // first program Sunday
+                const LAST_SATURDAY = mkDate("2026-08-01");        // last program Saturday
+                const LATE_CHECKOUT_DATE = mkDate("2026-08-02");   // optional free late checkout day
+
+                function mkDate(isoDateString) {
+                    const parts = isoDateString.split("-");
+                    const year = Number(parts[0]);
+                    const month = Number(parts[1]);
+                    const day = Number(parts[2]);
+                    return new Date(year, month - 1, day);
+                }
+
+                function getDateFromInput(id) {
+                    const value = document.getElementById(id).value;
+                    if (!value) {
+                        return null;
+                    }
+                    return mkDate(value);
+                }
+
+                function formatDate(d) {
+                    return d.toLocaleDateString(undefined, {
+                        weekday: "long",
+                        year: "numeric",
+                        month: "long",
+                        day: "numeric"
+                    });
+                }
+
+                function clearList(listEl) {
+                    while (listEl.firstChild) {
+                        listEl.removeChild(listEl.firstChild);
+                    }
+                }
+
+                function addStep(text) {
+                    const li = document.createElement("li");
+                    li.textContent = text;
+                    document.getElementById("steps").appendChild(li);
+                }
+
+                function addDays(dateObj, days) {
+                    const d = new Date(dateObj.getTime());
+                    d.setDate(d.getDate() + days);
+                    return d;
+                }
+
+                function daysInclusive(start, end) {
+                    if (end < start) {
+                        return 0;
+                    }
+                    return Math.round((end - start) / MS_PER_DAY) + 1;
+                }
+
+                // Round a dollar amount to cents safely
+                function roundToCents(amount) {
+                    return Math.round(amount * 100) / 100;
+                }
+
+                /**
+                 * Calculate how many Sunday to Saturday weeks are billed.
+                 * Weeks run from FIRST_SUNDAY up to LAST_SATURDAY.
+                 * We bill for a week if the guest stays any part of that week.
+                 * There is a two week minimum if any weeks are billed at all.
+                 */
+                function calculateWeeklyBlocks(weeklyStayStart, weeklyStayEnd) {
+                    let weeks = 0;
+                    let weekStart = new Date(FIRST_SUNDAY.getTime());
+
+                    while (weekStart <= LAST_SATURDAY) {
+                        const weekEnd = addDays(weekStart, 6);
+
+                        // Overlap between [weeklyStayStart, weeklyStayEnd] and [weekStart, weekEnd]
+                        const overlaps =
+                            weeklyStayStart <= weekEnd && weeklyStayEnd >= weekStart;
+
+                        if (overlaps) {
+                            weeks += 1;
+                        }
+
+                        weekStart = addDays(weekStart, 7);
+                    }
+
+                    if (weeks > 0 && weeks < 2) {
+                        weeks = 2;
+                    }
+
+                    return weeks;
+                }
+
+                document.getElementById("calcForm").addEventListener("submit", function (evt) {
+                    evt.preventDefault();
+                    const errorEl = document.getElementById("error");
+                    errorEl.textContent = "";
+                    clearList(document.getElementById("steps"));
+
+                    let checkIn = getDateFromInput("checkIn");
+                    let lastDaySelected = getDateFromInput("leave");
+
+                    if (!checkIn || !lastDaySelected) {
+                        errorEl.textContent = "Please fill in both the check in date and the last day selected.";
+                        return;
+                    }
+
+                    if (lastDaySelected < checkIn) {
+                        errorEl.textContent = "The last day selected must be on or after the check in date.";
+                        return;
+                    }
+
+                    // Clamp stay inside the program date range
+                    let stayStart = new Date(checkIn.getTime());
+                    if (stayStart < PROGRAM_START) {
+                        stayStart = new Date(PROGRAM_START.getTime());
+                    }
+
+                    let stayEndInclusive = new Date(lastDaySelected.getTime());
+                    if (stayEndInclusive > LATE_CHECKOUT_DATE) {
+                        stayEndInclusive = new Date(LATE_CHECKOUT_DATE.getTime());
+                    }
+
+                    // Determine if last day is Late Check Out
+                    const hasLateCheckoutDay =
+                        stayEndInclusive.getTime() === LATE_CHECKOUT_DATE.getTime();
+
+                    const housingType = document.querySelector(
+                        'input[name="housingType"]:checked'
+                    ).value;
+                    let weeklyRate;
+
+                    if (housingType === "shared") {
+                        weeklyRate = 390;
+                    } else {
+                        weeklyRate = 780;
+                    }
+
+                    const dailyRateRaw = weeklyRate / 7.0;
+                    const dailyRate = roundToCents(dailyRateRaw);
+
+                    // Total calendar days of occupancy for explanation
+                    const daysOfOccupancy = daysInclusive(stayStart, stayEndInclusive);
+
+                    // 1. Per day charge for May 21 through May 23 if the stay includes those days.
+                    const preWindowStart = PROGRAM_START;
+                    const preWindowEnd = addDays(FIRST_SUNDAY, -1); // day before first Sunday
+
+                    let preStart = stayStart > preWindowStart ? stayStart : preWindowStart;
+                    let preEnd = stayEndInclusive < preWindowEnd ? stayEndInclusive : preWindowEnd;
+
+                    let preDays = 0;
+                    if (preEnd >= preStart && preStart <= preWindowEnd) {
+                        preDays = daysInclusive(preStart, preEnd);
+                    }
+
+                    const preCharge = roundToCents(preDays * dailyRate);
+
+                    // 2. Weekly billing for Sunday to Saturday weeks.
+                    let weeklyWeeks = 0;
+                    let weeklyCharge = 0;
+                    let weeklyStayStart;
+                    let weeklyStayEnd;
+
+                    if (stayEndInclusive >= FIRST_SUNDAY) {
+                        weeklyStayStart = stayStart > FIRST_SUNDAY ? stayStart : FIRST_SUNDAY;
+                        weeklyStayEnd = stayEndInclusive < LAST_SATURDAY ? stayEndInclusive : LAST_SATURDAY;
+
+                        if (weeklyStayEnd >= weeklyStayStart) {
+                            weeklyWeeks = calculateWeeklyBlocks(weeklyStayStart, weeklyStayEnd);
+                            weeklyCharge = weeklyWeeks * weeklyRate;
+                        }
+                    }
+
+                    const standardCharge = roundToCents(preCharge + weeklyCharge);
+                    const finalCharge = standardCharge;
+                    const usedRateType = "Standard (per day before first Sunday plus weekly billing)";
+
+                    // Build summary
+                    const summaryEl = document.getElementById("summary");
+                    summaryEl.innerHTML = "";
+
+                    const p1 = document.createElement("p");
+                    p1.textContent =
+                        "Stay in the system: " +
+                        formatDate(stayStart) +
+                        " through " +
+                        formatDate(stayEndInclusive) +
+                        ".";
+                    summaryEl.appendChild(p1);
+
+                    const pNights = document.createElement("p");
+                    pNights.textContent =
+                        "Total calendar days of occupancy (inclusive): " + daysOfOccupancy + ".";
+                    summaryEl.appendChild(pNights);
+
+                    if (hasLateCheckoutDay) {
+                        const pLate = document.createElement("p");
+                        pLate.textContent =
+                            "The last day selected is " +
+                            formatDate(LATE_CHECKOUT_DATE) +
+                            ". This is treated as a free Late Check Out day and does not create an extra billed week.";
+                        summaryEl.appendChild(pLate);
+                    }
+
+                    const p2 = document.createElement("p");
+                    p2.textContent =
+                        "Days from May 21 through May 23 that you stay: " +
+                        preDays +
+                        " day(s). These are charged at a daily rate of $" +
+                        dailyRate.toFixed(2) +
+                        " each for a total of $" +
+                        preCharge.toFixed(2) +
+                        ".";
+                    summaryEl.appendChild(p2);
+
+                    const p3 = document.createElement("p");
+                    p3.textContent =
+                        "Weekly billing covers Sunday through Saturday weeks between " +
+                        formatDate(FIRST_SUNDAY) +
+                        " and " +
+                        formatDate(LAST_SATURDAY) +
+                        ". Your stay covers " +
+                        weeklyWeeks +
+                        " billable week(s) at $" +
+                        weeklyRate.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) +
+                        " per week, for a weekly total of $" +
+                        weeklyCharge.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) +
+                        ".";
+                    summaryEl.appendChild(p3);
+
+                    const p4 = document.createElement("p");
+                    p4.textContent =
+                        "Rate type used for this calculation: " +
+                        usedRateType +
+                        ". Final charge: $" +
+                        finalCharge.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) +
+                        ".";
+                    summaryEl.appendChild(p4);
+
+                    // Step by step explanation
+
+                    addStep(
+                        "You selected a stay from " +
+                            formatDate(stayStart) +
+                            " through " +
+                            formatDate(stayEndInclusive) +
+                            ". Intern housing runs from " +
+                            formatDate(PROGRAM_START) +
+                            " through " +
+                            formatDate(LATE_CHECKOUT_DATE) +
+                            "."
+                    );
+
+                    addStep(
+                        "Total calendar days you occupy housing are counted from your first day through your last selected day. " +
+                            "That gives " +
+                            daysOfOccupancy +
+                            " day(s) of occupancy (inclusive)."
+                    );
+
+                    if (preDays > 0) {
+                        addStep(
+                            "From " +
+                                formatDate(preStart) +
+                                " through " +
+                                formatDate(preEnd) +
+                                " you are in the early part of the program before the first Sunday " +
+                                formatDate(FIRST_SUNDAY) +
+                                ". Those " +
+                                preDays +
+                                " day(s) are charged at a per day rate equal to the weekly rate divided by 7, which is $" +
+                                dailyRate.toFixed(2) +
+                                " per day."
+                        );
+                    } else {
+                        addStep(
+                            "Your stay does not include any days between May 21 and May 23, so there is no separate per day charge at the start."
+                        );
+                    }
+
+                    if (weeklyWeeks > 0) {
+                        addStep(
+                            "From the first Sunday " +
+                                formatDate(FIRST_SUNDAY) +
+                                " through the last program Saturday " +
+                                formatDate(LAST_SATURDAY) +
+                                ", weeks run Sunday through Saturday and are billed as whole weeks if you stay any part of that week."
+                        );
+
+                        addStep(
+                            "We look at each Sunday to Saturday week in that window and check if your stay touches that week. " +
+                                "If it does, that week is billed. This gives " +
+                                weeklyWeeks +
+                                " billable week(s). If there had only been one billable week, we would raise it to two to respect the two week minimum."
+                        );
+                    } else {
+                        addStep(
+                            "Your stay does not touch any Sunday to Saturday weeks inside the main program window, so there is no weekly billing and only per day charges would apply."
+                        );
+                    }
+
+                    addStep(
+                        "You chose the " +
+                            (housingType === "shared"
+                                ? "Private bedroom in a shared apartment"
+                                : "Private apartment") +
+                            " option. The weekly rate for this option is $" +
+                            weeklyRate.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) +
+                            ", which corresponds to a daily rate of $" +
+                            dailyRate.toFixed(2) +
+                            " when we need to charge by the day."
+                    );
+
+                    addStep(
+                        "The per day charge for early days is $" +
+                            preCharge.toFixed(2) +
+                            ". The weekly charge for Sunday to Saturday blocks is $" +
+                            weeklyCharge.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) +
+                            ". Together that gives a total standard charge of $" +
+                            standardCharge.toFixed(2) +
+                            "."
+                    );
+
+                    if (hasLateCheckoutDay) {
+                        addStep(
+                            "Because you chose August 2, 2026 as your last day this is treated as a Late Check Out day that is free. " +
+                                "It does not create an extra week, so for example a stay from July 26 to August 1 is one billed week and a stay from July 26 to August 2 is also one billed week."
+                        );
+                    }
+
+                    addStep(
+                        "The final charge for this stay is $" +
+                            finalCharge.toFixed(2) +
+                            "."
+                    );
+                });
+            })();
+        </script>
+    </body>
+</html>
